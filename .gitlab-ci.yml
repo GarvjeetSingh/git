@@ -1,0 +1,59 @@
+stages:
+    - ".pre"
+    - "build"
+    - "test"
+    - "deploy"
+
+# default image of the YAML: If you have not specify the "image" argument inside the job,
+# then this image will be used
+image: python:latest
+
+include:
+    - template: "Security/SAST.gitlab-ci.yml"
+
+variables:
+    IMAGE_TAG: "registry.gitlab.com/Lambtonkunal/First project"
+    IMAGE_NAME: "myapp"
+
+
+build:
+    # use Ubuntu instead of the default Python image
+    stage: "build"
+    tags:
+        - win10-run
+    script:
+        # docker login will authenticate the job with the container registry
+        # $CI_REGISTRY_USERNAME, $CI_REGISTRY_PASSWORD, $CI_REGISTRY are GitLab built-in variables
+        - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+        - "echo I am building the docker image!"
+
+        # Creating the .env with the three protected and masked variables
+        # the following line is for Linux/Mac based runners:
+#        - "echo $db_password $db_server_address $db_username > .env"
+        # the following line is for Windows based runners:
+        - echo ${db_password} ${db_server_address} ${db_username} | Out-File -Encoding ASCII -FilePath .env
+
+        # GitLab container registry URL: registry.gitlab.com/<GROUP_NAME>/<PROJECT_NAME>
+        # registry.gitlab.com/lambton_cbd_2/cbd_2_getting_started/myapp
+        # Docker image tag is registry.gitlab.com/<GROUP_NAME>/<PROJECT_NAME>/<IMAGE_NAME>:<IMAGE_VER>
+#        - echo ${IMAGE_TAG}
+#        - docker build -t ${IMAGE_TAG}:${CI_COMMIT_SHORT_SHA} .
+        - docker build -t registry.gitlab.com/lambtonkunal/first-project:$CI_COMMIT_SHORT_SHA .
+        # docker push will save the image to the container registry
+        # $IMAGE_TAG is the container registry URL
+        # $CI_COMMIT_SHORT_SHA is the unique SHA of the commit (use to version the image)
+#        - docker push ${IMAGE_TAG}:${CI_COMMIT_SHORT_SHA}
+        - docker push registry.gitlab.com/lambtonkunal/first-project:$CI_COMMIT_SHORT_SHA
+
+deploy:
+    stage: "deploy"
+    tags:
+        - win10-run
+    script: 
+        - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+        # docker pull will download (pull) the image from the container registry
+        - docker pull registry.gitlab.com/lambtonkunal/first-project:$CI_COMMIT_SHORT_SHA
+        # docker run will run the image on the server on the specified port
+        - docker run -d -p 5000:5000 registry.gitlab.com/lambtonkunal/first-project:$CI_COMMIT_SHORT_SHA
+
+
